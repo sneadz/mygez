@@ -97,7 +97,7 @@ app.use((req, res, next) => {
 });
 
 // --- Fichiers statiques protégés ---
-app.use(express.static("public"));
+app.use(express.static(join(__dirname, "public")));
 
 // --- MyGES Auth (par user) ---
 async function getTokenForUser(username, password) {
