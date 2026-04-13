@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MyGES</title>
+  <title>mygez</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -42,13 +42,14 @@
     }
 
     header h1 {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: .5px;
-      color: var(--accent);
+      font-family: 'Syne', sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text);
     }
 
-    header h1 span { color: var(--muted); font-weight: 400; }
+    header h1 span { color: var(--accent); }
 
     #status-dot {
       width: 8px; height: 8px;
@@ -267,8 +268,7 @@
 <body>
 
 <header>
-  <div id="status-dot" title="Statut connexion"></div>
-  <h1>MyGES Explorer</h1>
+  <h1>my<span>gez</span></h1>
 </header>
 
 <div class="layout">
