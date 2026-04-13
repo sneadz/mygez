@@ -1,16 +1,68 @@
 import "dotenv/config";
 import express from "express";
 import axios from "axios";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+const BASE_API  = "https://api.kordis.fr";
+const AUTH_URL  = "https://authentication.kordis.fr/oauth/authorize";
+const BASE_AUTH = "https://authentication.kordis.fr";
+const UA        = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+const COOKIE    = "mgz_session";
+
+// --- Session ---
+function makeToken(username) {
+  return crypto.createHmac("sha256", process.env.APP_SECRET).update(username).digest("hex");
+}
+function parseCookies(req) {
+  return Object.fromEntries(
+    (req.headers.cookie || "").split(";").map(c => c.trim().split("=").map(s => decodeURIComponent(s.trim())))
+  );
+}
+function isAuth(req) {
+  const token = parseCookies(req)[COOKIE];
+  if (!token) return false;
+  const expected = makeToken(process.env.USERNAME);
+  try { return crypto.timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expected, "hex")); }
+  catch { return false; }
+}
+
+// --- Login routes (publiques) ---
+app.get("/login", (req, res) => res.sendFile(join(__dirname, "login.html")));
+
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username === process.env.USERNAME && password === process.env.PASSWORD) {
+    const token  = makeToken(username);
+    const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+    res.setHeader("Set-Cookie", `${COOKIE}=${token}; HttpOnly${secure}; SameSite=Strict; Path=/; Max-Age=604800`);
+    return res.redirect("/");
+  }
+  res.redirect("/login?error=1");
+});
+
+app.get("/logout", (req, res) => {
+  res.setHeader("Set-Cookie", `${COOKIE}=; HttpOnly; Path=/; Max-Age=0`);
+  res.redirect("/login");
+});
+
+// --- Auth middleware ---
+app.use((req, res, next) => {
+  if (isAuth(req)) return next();
+  if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Non authentifié" });
+  res.redirect("/login");
+});
+
+// --- Fichiers statiques protégés ---
 app.use(express.static("public"));
 
-const BASE_API = "https://api.kordis.fr";
-const AUTH_URL = "https://authentication.kordis.fr/oauth/authorize";
-const BASE_AUTH = "https://authentication.kordis.fr";
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
-
+// --- MyGES Auth ---
 let cachedToken = null;
 let tokenExpiry = 0;
 
@@ -30,7 +82,6 @@ async function getToken() {
   };
   const cookieHeader = () => Object.entries(jar).map(([k, v]) => `${k}=${v}`).join("; ");
 
-  // 1. GET page de login en suivant les redirects manuellement
   let currentUrl = `${AUTH_URL}?response_type=token&client_id=skolae-app`;
   let loginPageData = "";
   for (let i = 0; i < 6; i++) {
@@ -48,7 +99,6 @@ async function getToken() {
     }
   }
 
-  // 2. POST credentials
   const actionMatch = loginPageData.match(/action="([^"]+)"/);
   const actionUrl = new URL(actionMatch?.[1]?.replace(/&amp;/g, "&") ?? "/login", BASE_AUTH);
   if (!actionUrl.searchParams.has("client_id")) {
@@ -72,7 +122,6 @@ async function getToken() {
   );
   saveCookies(postRes.headers);
 
-  // 3. Re-GET /oauth/authorize avec le JSESSIONID — on est maintenant authentifié
   let location = `${AUTH_URL}?response_type=token&client_id=skolae-app`;
   for (let i = 0; i < 6 && location; i++) {
     const tokenMatch = location.match(/[#&?]access_token=([^&#]+)/);
@@ -90,7 +139,7 @@ async function getToken() {
     location = r.headers["location"] || "";
   }
 
-  throw new Error("Impossible de récupérer le token. Vérifie tes identifiants.");
+  throw new Error("Impossible de récupérer le token MyGES.");
 }
 
 async function mygesGet(path, token) {
@@ -100,23 +149,10 @@ async function mygesGet(path, token) {
   return res.data;
 }
 
-function weekStart() {
-  const d = new Date();
-  d.setDate(d.getDate() - d.getDay() + 1);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-function weekEnd() {
-  const d = new Date();
-  d.setDate(d.getDate() - d.getDay() + 7);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
 
 const ROUTES = [
   { path: "/api/grades",   myges: (y) => `/me/${y}/grades` },
   { path: "/api/absences", myges: (y) => `/me/${y}/absences` },
-  { path: "/api/agenda",   myges: ()  => `/me/agenda?start=${weekStart()}&end=${weekEnd()}` },
   { path: "/api/teachers", myges: (y) => `/me/${y}/teachers` },
   { path: "/api/courses",  myges: (y) => `/me/${y}/courses` },
 ];
@@ -125,8 +161,8 @@ for (const route of ROUTES) {
   app.get(route.path, async (req, res) => {
     try {
       const token = await getToken();
-      const year = req.query.year || "2025";
-      const data = await mygesGet(route.myges(year), token);
+      const year  = req.query.year || "2025";
+      const data  = await mygesGet(route.myges(year), token);
       res.json(data);
     } catch (e) {
       res.status(e.response?.status || 500).json({ error: e.message, detail: e.response?.data });
@@ -139,7 +175,7 @@ app.get("/api/raw", async (req, res) => {
   if (!path) return res.status(400).json({ error: "path requis" });
   try {
     const token = await getToken();
-    const data = await mygesGet(path, token);
+    const data  = await mygesGet(path, token);
     res.json(data);
   } catch (e) {
     res.status(e.response?.status || 500).json({ error: e.message, detail: e.response?.data });

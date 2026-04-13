@@ -275,7 +275,6 @@
   <nav>
     <button class="active" data-endpoint="grades">Notes</button>
     <button data-endpoint="absences">Absences</button>
-    <button data-endpoint="agenda">Agenda</button>
     <div class="separator"></div>
     <button data-endpoint="teachers">Profs</button>
     <button data-endpoint="courses">Cours</button>
@@ -316,7 +315,6 @@
 const LABELS = {
   grades: "Notes",
   absences: "Absences",
-  agenda: "Agenda de la semaine",
   teachers: "Professeurs",
   courses: "Cours",
   raw: "Requête libre",
@@ -525,15 +523,34 @@ function letterColor(l) {
 function renderAbsences(d) {
   const results = d.result || (Array.isArray(d) ? d : []);
   if (!results.length) return `<p style="color:var(--muted)">Aucune absence trouvée.</p>`;
-  return `<div class="card"><table>
-    <thead><tr><th>Date</th><th>Cours</th><th>Justifiée</th><th>Motif</th></tr></thead>
-    <tbody>${results.map(a => `<tr>
-      <td>${a.date ? new Date(a.date).toLocaleDateString("fr-FR") : "—"}</td>
-      <td>${a.course || a.name || "—"}</td>
-      <td>${a.justified ? '<span class="badge green">Oui</span>' : '<span class="badge red">Non</span>'}</td>
-      <td>${a.reason || a.motif || "—"}</td>
-    </tr>`).join("")}</tbody>
-  </table></div>`;
+
+  const justified   = results.filter(a => a.justified).length;
+  const unjustified = results.length - justified;
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+      <div class="card" style="text-align:center">
+        <div style="font-size:28px;font-weight:700;color:var(--text)">${results.length}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Total</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:28px;font-weight:700;color:var(--success)">${justified}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Justifiées</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:28px;font-weight:700;color:var(--error)">${unjustified}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Non justifiées</div>
+      </div>
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>Date</th><th>Cours</th><th>Justifiée</th><th>Motif</th></tr></thead>
+      <tbody>${results.map(a => `<tr>
+        <td>${a.date ? new Date(a.date).toLocaleDateString("fr-FR") : "—"}</td>
+        <td>${a.course || a.name || "—"}</td>
+        <td>${a.justified ? '<span class="badge green">Oui</span>' : '<span class="badge red">Non</span>'}</td>
+        <td>${a.reason || a.motif || "—"}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>`;
 }
 
 function renderAgenda(d) {
