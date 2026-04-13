@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyGES Explorer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --accent: #6c63ff;
+      --accent2: #a78bfa;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --success: #10b981;
+      --error: #ef4444;
+      --warn: #f59e0b;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent2);
+    }
+
+    #status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+    }
+    #status-dot.ok { background: var(--success); }
+    #status-dot.err { background: var(--error); }
+
+    .layout {
+      display: flex;
+      height: calc(100vh - 57px);
+    }
+
+    nav {
+      width: 200px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+    }
+
+    nav button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      text-align: left;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background .15s, color .15s;
+      white-space: nowrap;
+    }
+    nav button:hover { background: var(--border); color: var(--text); }
+    nav button.active { background: var(--accent); color: #fff; }
+
+    .separator {
+      height: 1px;
+      background: var(--border);
+      margin: 6px 0;
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .toolbar {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar label { color: var(--muted); font-size: 12px; }
+
+    .toolbar input, .toolbar select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+    .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn.secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .result-panel {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .tab {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px 6px 0 0;
+      padding: 5px 12px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .tab.active { background: var(--surface); color: var(--text); border-bottom-color: var(--surface); }
+
+    #view-pretty, #view-raw { display: none; }
+    #view-pretty.active, #view-raw.active { display: block; }
+
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      overflow: auto;
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .pretty-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .card h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--accent2);
+    }
+
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+    .kv .k { color: var(--muted); }
+    .kv .v { color: var(--text); word-break: break-all; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge.green { background: #10b98120; color: var(--success); }
+    .badge.red { background: #ef444420; color: var(--error); }
+    .badge.yellow { background: #f59e0b20; color: var(--warn); }
+    .badge.blue { background: #6c63ff20; color: var(--accent2); }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      padding: 32px;
+    }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      background: #ef444410;
+      border: 1px solid #ef444430;
+      border-radius: 8px;
+      padding: 16px;
+      color: var(--error);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      padding: 8px 10px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+      background: var(--bg);
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    tr:hover td { background: var(--border); }
+
+    .raw-path {
+      flex: 1;
+      max-width: 320px;
+    }
+
+    #endpoint-label {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div id="status-dot" title="Statut connexion"></div>
+  <h1>MyGES Explorer</h1>
+</header>
+
+<div class="layout">
+  <nav>
+    <button class="active" data-endpoint="grades">Notes</button>
+    <button data-endpoint="absences">Absences</button>
+    <button data-endpoint="agenda">Agenda</button>
+    <div class="separator"></div>
+    <button data-endpoint="teachers">Profs</button>
+    <button data-endpoint="courses">Cours</button>
+    <div class="separator"></div>
+    <button data-endpoint="raw">Requête libre</button>
+  </nav>
+
+  <div class="main">
+    <div class="toolbar" id="toolbar">
+      <span id="endpoint-label">Notes</span>
+      <div style="flex:1"></div>
+      <label>Année</label>
+      <select id="year-select">
+        <option value="2025">2ème année</option>
+        <option value="2024">1ère année</option>
+      </select>
+      <button class="btn" id="fetch-btn">Charger</button>
+    </div>
+
+    <div class="content">
+      <div class="result-panel">
+        <div class="tabs">
+          <button class="tab active" data-tab="pretty">Vue lisible</button>
+          <button class="tab" data-tab="raw">JSON brut</button>
+        </div>
+        <div id="view-pretty" class="active">
+          <p style="color:var(--muted)">Sélectionne un endpoint et clique sur Charger.</p>
+        </div>
+        <div id="view-raw">
+          <pre id="raw-json">— rien à afficher —</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LABELS = {
+  profile: "Profil",
+  grades: "Notes",
+  absences: "Absences",
+  agenda: "Agenda de la semaine",
+  news: "Actualités",
+  teachers: "Professeurs",
+  courses: "Cours",
+  students: "Étudiants",
+  raw: "Requête libre",
+};
+
+let currentEndpoint = "grades";
+
+// --- Nav ---
+document.querySelectorAll("nav button[data-endpoint]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentEndpoint = btn.dataset.endpoint;
+    document.getElementById("endpoint-label").textContent = LABELS[currentEndpoint];
+    updateToolbar();
+    if (currentEndpoint !== "raw") fetchData();
+  });
+});
+
+function updateToolbar() {
+  const tb = document.getElementById("toolbar");
+  // Supprimer champ raw s'il existe
+  document.getElementById("raw-path-input")?.remove();
+  document.getElementById("raw-path-label")?.remove();
+
+  const yearSelect = document.getElementById("year-select");
+  const yearLabel = yearSelect.previousElementSibling;
+
+  const noYear = ["profile", "news", "agenda"].includes(currentEndpoint);
+  yearSelect.style.display = noYear ? "none" : "";
+  yearLabel.style.display = noYear ? "none" : "";
+
+  if (currentEndpoint === "raw") {
+    const lbl = document.createElement("label");
+    lbl.id = "raw-path-label";
+    lbl.textContent = "Path";
+    const inp = document.createElement("input");
+    inp.id = "raw-path-input";
+    inp.className = "raw-path";
+    inp.placeholder = "/me/grades?year=2025";
+    inp.value = "/me/grades?year=2025";
+    const fetchBtn = document.getElementById("fetch-btn");
+    tb.insertBefore(inp, fetchBtn);
+    tb.insertBefore(lbl, inp);
+    yearSelect.style.display = "none";
+    yearLabel.style.display = "none";
+  }
+}
+
+// --- Tabs ---
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    const which = tab.dataset.tab;
+    document.getElementById("view-pretty").classList.toggle("active", which === "pretty");
+    document.getElementById("view-raw").classList.toggle("active", which === "raw");
+  });
+});
+
+// --- Fetch ---
+document.getElementById("fetch-btn").addEventListener("click", fetchData);
+document.addEventListener("keydown", e => { if (e.key === "Enter") fetchData(); });
+
+async function fetchData() {
+  const year = document.getElementById("year-select").value;
+  let url;
+
+  if (currentEndpoint === "raw") {
+    const path = document.getElementById("raw-path-input")?.value?.trim();
+    if (!path) return;
+    url = `/api/raw?path=${encodeURIComponent(path)}`;
+  } else {
+    url = `/api/${currentEndpoint}?year=${year}`;
+  }
+
+  showLoading();
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.error || "Erreur inconnue", data.detail);
+    } else {
+      showData(data);
+      setStatus("ok");
+    }
+  } catch (e) {
+    showError(e.message);
+    setStatus("err");
+  }
+}
+
+function setStatus(s) {
+  const dot = document.getElementById("status-dot");
+  dot.className = s;
+}
+
+function showLoading() {
+  document.getElementById("view-pretty").innerHTML = `<div class="loading"><div class="spinner"></div> Chargement…</div>`;
+  document.getElementById("raw-json").textContent = "…";
+}
+
+function showError(msg, detail) {
+  setStatus("err");
+  document.getElementById("view-pretty").innerHTML =
+    `<div class="error-box"><b>Erreur :</b> ${msg}${detail ? `<pre style="margin-top:8px;background:none;border:none;padding:0;color:inherit">${JSON.stringify(detail, null, 2)}</pre>` : ""}</div>`;
+  document.getElementById("raw-json").textContent = msg;
+}
+
+function showData(data) {
+  document.getElementById("raw-json").textContent = JSON.stringify(data, null, 2);
+  const pretty = document.getElementById("view-pretty");
+
+  try {
+    switch (currentEndpoint) {
+      case "profile":   pretty.innerHTML = renderProfile(data); break;
+      case "grades":    pretty.innerHTML = renderGrades(data); break;
+      case "absences":  pretty.innerHTML = renderAbsences(data); break;
+      case "agenda":    pretty.innerHTML = renderAgenda(data); break;
+      case "news":      pretty.innerHTML = renderNews(data); break;
+      case "teachers":  pretty.innerHTML = renderTeachers(data); break;
+      case "courses":   pretty.innerHTML = renderCourses(data); break;
+      case "students":  pretty.innerHTML = renderStudents(data); break;
+      default:          pretty.innerHTML = renderGeneric(data); break;
+    }
+  } catch (e) {
+    pretty.innerHTML = renderGeneric(data);
+  }
+}
+
+// --- Renderers ---
+function kv(pairs) {
+  return `<div class="kv">${pairs.filter(([,v]) => v != null && v !== "").map(([k,v]) =>
+    `<span class="k">${k}</span><span class="v">${v}</span>`).join("")}</div>`;
+}
+
+function renderProfile(d) {
+  const r = d.result || d;
+  return `<div class="card"><h3>Profil étudiant</h3>${kv([
+    ["Nom", `${r.firstname || ""} ${r.lastname || ""}`],
+    ["Email", r.email],
+    ["Login", r.login || r.username],
+    ["Promo", r.promo || r.promotion],
+    ["Campus", r.campus],
+    ["Filière", r.major || r.filiere],
+    ["Statut", r.status],
+  ])}</div>`;
+}
+
+function renderGrades(d) {
+  const results = d.result || (Array.isArray(d) ? d : []);
+  if (!results.length) return `<p style="color:var(--muted)">Aucune note trouvée.</p>`;
+
+  // Grouper par semestre
+  const bySemester = {};
+  for (const c of results) {
+    const s = c.trimester_name || "Autre";
+    if (!bySemester[s]) bySemester[s] = [];
+    bySemester[s].push(c);
+  }
+
+  return Object.entries(bySemester).map(([sem, courses]) => `
+    <div class="card">
+      <h3>${sem}</h3>
+      <table>
+        <thead><tr><th>Matière</th><th>Prof</th><th>CC</th><th>Partiel</th><th>Moyenne</th><th>Coef</th></tr></thead>
+        <tbody>${courses.map(c => `
+          <tr>
+            <td style="max-width:220px">${c.course || "—"}</td>
+            <td style="color:var(--muted)">${c.teacher_first_name || ""} ${c.teacher_last_name || ""}</td>
+            <td>${c.grades?.length ? c.grades.map(g => grade(g)).join(" ") : "—"}</td>
+            <td>${c.exam != null ? grade(c.exam) : "—"}</td>
+            <td>${c.average != null ? grade(c.average) : "—"}</td>
+            <td style="color:var(--muted)">${c.ects || "—"}</td>
+          </tr>`).join("")}
+        </tbody>
+        <tfoot>${(() => {
+          const withAvg = courses.filter(c => c.average != null && parseFloat(c.coef) > 0);
+          if (!withAvg.length) return "";
+          const totalCoef = withAvg.reduce((s, c) => s + parseFloat(c.coef), 0);
+          const weighted = withAvg.reduce((s, c) => s + c.average * parseFloat(c.coef), 0) / totalCoef;
+          return `<tr style="font-weight:600;border-top:2px solid var(--border)">
+            <td colspan="4" style="text-align:right;color:var(--muted)">Moyenne générale</td>
+            <td>${grade(weighted)}</td>
+            <td></td>
+          </tr>`;
+        })()}</tfoot>
+      </table>
+    </div>`).join("");
+}
+
+function grade(v) {
+  if (v == null) return "—";
+  const n = parseFloat(v);
+  const cls = n >= 10 ? "green" : "red";
+  return `<span class="badge ${cls}">${n % 1 === 0 ? n : n.toFixed(2)}</span>`;
+}
+
+function letterColor(l) {
+  if (!l || l === "F") return "red";
+  if (l.startsWith("A")) return "green";
+  if (l.startsWith("B")) return "blue";
+  return "yellow";
+}
+
+function renderAbsences(d) {
+  const results = d.result || (Array.isArray(d) ? d : []);
+  if (!results.length) return `<p style="color:var(--muted)">Aucune absence trouvée.</p>`;
+  return `<div class="card"><table>
+    <thead><tr><th>Date</th><th>Cours</th><th>Justifiée</th><th>Motif</th></tr></thead>
+    <tbody>${results.map(a => `<tr>
+      <td>${a.date ? new Date(a.date).toLocaleDateString("fr-FR") : "—"}</td>
+      <td>${a.course || a.name || "—"}</td>
+      <td>${a.justified ? '<span class="badge green">Oui</span>' : '<span class="badge red">Non</span>'}</td>
+      <td>${a.reason || a.motif || "—"}</td>
+    </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+function renderAgenda(d) {
+  const results = d.result || (Array.isArray(d) ? d : []);
+  if (!results.length) return `<p style="color:var(--muted)">Aucun événement cette semaine.</p>`;
+  return `<div class="pretty-container">${results.map(ev => `
+    <div class="card">${kv([
+      ["Cours", ev.name || ev.discipline],
+      ["Date", ev.start_date ? new Date(ev.start_date).toLocaleString("fr-FR") : "—"],
+      ["Fin",  ev.end_date   ? new Date(ev.end_date).toLocaleString("fr-FR")   : "—"],
+      ["Salle", ev.rooms?.map(r=>r.name||r).join(", ") || ev.room],
+      ["Prof", ev.teachers?.map(t=>`${t.firstname} ${t.lastname}`).join(", ") || ev.teacher],
+    ])}</div>`).join("")}`;
+}
+
+function renderNews(d) {
+  const results = d.result || (Array.isArray(d) ? d : []);
+  if (!results.length) return `<p style="color:var(--muted)">Aucune actualité.</p>`;
+  return `<div class="pretty-container">${results.map(n => `
+    <div class="card">
+      <h3>${n.title || "Sans titre"}</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px">${n.date ? new Date(n.date).toLocaleDateString("fr-FR") : ""}</p>
+      <p style="line-height:1.6">${n.content || n.body || ""}</p>
+    </div>`).join("")}`;
+}
+
+function renderTeachers(d) {
+  const results = d.result || (Array.isArray(d) ? d : []);
+  if (!results.length) return `<p style="color:var(--muted)">Aucun professeur trouvé.</p>`;
+  return `<div class="card"><table>
+    <thead><tr><th>Prénom</th><th>Nom</th><th>Email</th></tr></thead>
+    <tbody>${results.map(t => {
+      const photo = t.links?.find(l=>l.rel==="photo")?.href;
+      return `<tr>
+        <td>${photo ? `<img src="${photo}" style="width:28px;height:28px;border-radius:50%;margin-right:8px;vertical-align:middle" onerror="this.remove()">` : ""}${t.firstname||"—"}</td>
+        <td>${t.lastname||"—"}</td>
+        <td>${t.email||"—"}</td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table></div>`;
+}
+
+function renderCourses(d) {
+  const results = d.result || (Array.isArray(d) ? d : []);
+  if (!results.length) return `<p style="color:var(--muted)">Aucun cours trouvé.</p>`;
+  return `<div class="card"><table>
+    <thead><tr><th>Cours</th><th>Coef.</th><th>Crédits</th></tr></thead>
+    <tbody>${results.map(c => `<tr>
+      <td>${c.name || c.discipline || "—"}</td>
+      <td>${c.coef ?? c.coefficient ?? "—"}</td>
+      <td>${c.credits ?? c.ects ?? "—"}</td>
+    </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+function renderStudents(d) {
+  const results = d.result || (Array.isArray(d) ? d : []);
+  if (!results.length) return `<p style="color:var(--muted)">Aucun étudiant trouvé.</p>`;
+  return `<div class="card"><table>
+    <thead><tr><th>Prénom</th><th>Nom</th><th>Email</th></tr></thead>
+    <tbody>${results.slice(0, 100).map(s => `<tr>
+      <td>${s.firstname||"—"}</td>
+      <td>${s.lastname||"—"}</td>
+      <td>${s.email||"—"}</td>
+    </tr>`).join("")}
+    ${results.length > 100 ? `<tr><td colspan="3" style="color:var(--muted)">… et ${results.length - 100} autres</td></tr>` : ""}
+    </tbody>
+  </table></div>`;
+}
+
+function renderGeneric(d) {
+  return `<div class="pretty-container">${renderValue(d)}</div>`;
+}
+
+function renderValue(v, depth=0) {
+  if (Array.isArray(v)) {
+    if (v.length === 0) return `<span style="color:var(--muted)">[]</span>`;
+    return `<div class="card">${v.map((item, i) =>
+      `<div style="margin-bottom:${i<v.length-1?8:0}px">${renderValue(item, depth+1)}</div>`
+    ).join("")}</div>`;
+  }
+  if (v && typeof v === "object") {
+    return `<div class="kv">${Object.entries(v).map(([k, val]) =>
+      `<span class="k">${k}</span><span class="v">${
+        typeof val === "object" && val !== null
+          ? `<pre style="background:none;border:none;padding:0;font-size:11px">${JSON.stringify(val,null,2)}</pre>`
+          : String(val ?? "—")
+      }</span>`
+    ).join("")}</div>`;
+  }
+  return String(v ?? "—");
+}
+
+// --- Init ---
+document.getElementById("year-select").value = "2025";
+updateToolbar();
+fetchData();
+</script>
+</body>
+</html>
