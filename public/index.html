@@ -3,27 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MyGES Explorer</title>
+  <title>MyGES</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --border: #2a2d3a;
-      --accent: #6c63ff;
-      --accent2: #a78bfa;
-      --text: #e2e8f0;
-      --muted: #64748b;
-      --success: #10b981;
-      --error: #ef4444;
-      --warn: #f59e0b;
+      --bg: #0d0d0f;
+      --surface: #141416;
+      --surface2: #1a1a1e;
+      --border: #242428;
+      --accent: #439BD1;
+      --accent-dim: #439BD112;
+      --text: #e2eaf4;
+      --muted: #4d6480;
+      --success: #34d399;
+      --error: #f87171;
+      --warn: #fbbf24;
     }
 
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
       font-size: 14px;
       min-height: 100vh;
     }
@@ -31,42 +34,46 @@
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 16px 24px;
+      padding: 0 24px;
+      height: 52px;
       display: flex;
       align-items: center;
       gap: 12px;
     }
 
     header h1 {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--accent2);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      color: var(--accent);
     }
 
+    header h1 span { color: var(--muted); font-weight: 400; }
+
     #status-dot {
-      width: 10px; height: 10px;
+      width: 8px; height: 8px;
       border-radius: 50%;
       background: var(--muted);
       transition: background .3s;
+      margin-left: auto;
     }
-    #status-dot.ok { background: var(--success); }
-    #status-dot.err { background: var(--error); }
+    #status-dot.ok  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    #status-dot.err { background: var(--error);   box-shadow: 0 0 6px var(--error); }
 
     .layout {
       display: flex;
-      height: calc(100vh - 57px);
+      height: calc(100vh - 52px);
     }
 
     nav {
-      width: 200px;
+      width: 185px;
       flex-shrink: 0;
       background: var(--surface);
       border-right: 1px solid var(--border);
-      padding: 12px 8px;
+      padding: 16px 10px;
       display: flex;
       flex-direction: column;
       gap: 2px;
-      overflow-y: auto;
     }
 
     nav button {
@@ -75,94 +82,82 @@
       color: var(--muted);
       text-align: left;
       padding: 8px 12px;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
       transition: background .15s, color .15s;
       white-space: nowrap;
     }
-    nav button:hover { background: var(--border); color: var(--text); }
-    nav button.active { background: var(--accent); color: #fff; }
-
-    .separator {
-      height: 1px;
-      background: var(--border);
-      margin: 6px 0;
+    nav button:hover { background: var(--surface2); color: var(--text); }
+    nav button.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid #38bdf830;
     }
 
-    .main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+    .separator { height: 1px; background: var(--border); margin: 8px 0; }
+
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
     .toolbar {
-      padding: 12px 16px;
+      padding: 10px 20px;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       flex-wrap: wrap;
+      background: var(--surface);
     }
 
-    .toolbar label { color: var(--muted); font-size: 12px; }
+    .toolbar label { color: var(--muted); font-size: 12px; font-weight: 500; }
 
     .toolbar input, .toolbar select {
       background: var(--bg);
       border: 1px solid var(--border);
       color: var(--text);
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 5px 10px;
       font-size: 13px;
+      font-family: inherit;
       outline: none;
+      transition: border-color .15s;
     }
     .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
 
     .btn {
       background: var(--accent);
-      color: #fff;
+      color: #080c14;
       border: none;
-      border-radius: 6px;
-      padding: 6px 14px;
+      border-radius: 8px;
+      padding: 6px 16px;
       cursor: pointer;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
+      font-family: inherit;
       transition: opacity .15s;
     }
     .btn:hover { opacity: .85; }
-    .btn.secondary {
-      background: var(--border);
-      color: var(--text);
-    }
 
-    .content {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-    }
+    .content { flex: 1; display: flex; overflow: hidden; }
 
-    .result-panel {
-      flex: 1;
-      overflow: auto;
-      padding: 16px;
-    }
+    .result-panel { flex: 1; overflow: auto; padding: 20px; }
 
-    .tabs {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 12px;
-    }
+    .tabs { display: flex; gap: 2px; margin-bottom: 16px; }
     .tab {
       background: none;
       border: 1px solid var(--border);
       color: var(--muted);
-      border-radius: 6px 6px 0 0;
-      padding: 5px 12px;
+      border-radius: 8px;
+      padding: 5px 14px;
       cursor: pointer;
       font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      transition: all .15s;
     }
-    .tab.active { background: var(--surface); color: var(--text); border-bottom-color: var(--surface); }
+    .tab.active { background: var(--accent-dim); color: var(--accent); border-color: #38bdf830; }
 
     #view-pretty, #view-raw { display: none; }
     #view-pretty.active, #view-raw.active { display: block; }
@@ -170,58 +165,57 @@
     pre {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 16px;
       overflow: auto;
       font-family: 'Fira Code', 'Cascadia Code', monospace;
       font-size: 12px;
-      line-height: 1.6;
+      line-height: 1.7;
       white-space: pre-wrap;
       word-break: break-all;
     }
 
-    .pretty-container {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+    .pretty-container { display: flex; flex-direction: column; gap: 12px; }
 
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px 16px;
+      border-radius: 12px;
+      padding: 16px 18px;
     }
 
     .card h3 {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      margin-bottom: 10px;
-      color: var(--accent2);
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      color: var(--accent);
     }
 
-    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
-    .kv .k { color: var(--muted); }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 5px 20px; }
+    .kv .k { color: var(--muted); font-size: 12px; }
     .kv .v { color: var(--text); word-break: break-all; }
 
     .badge {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 2px 9px;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
     }
-    .badge.green { background: #10b98120; color: var(--success); }
-    .badge.red { background: #ef444420; color: var(--error); }
-    .badge.yellow { background: #f59e0b20; color: var(--warn); }
-    .badge.blue { background: #6c63ff20; color: var(--accent2); }
+    .badge.green  { background: #34d39918; color: var(--success); }
+    .badge.red    { background: #f8717118; color: var(--error); }
+    .badge.yellow { background: #fbbf2418; color: var(--warn); }
+    .badge.blue   { background: var(--accent-dim); color: var(--accent); }
 
     .loading {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       color: var(--muted);
-      padding: 32px;
+      padding: 40px 20px;
+      font-size: 13px;
     }
     .spinner {
       width: 18px; height: 18px;
@@ -229,45 +223,44 @@
       border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin .7s linear infinite;
+      flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .error-box {
-      background: #ef444410;
-      border: 1px solid #ef444430;
-      border-radius: 8px;
+      background: #f8717110;
+      border: 1px solid #f8717130;
+      border-radius: 10px;
       padding: 16px;
       color: var(--error);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
       font-size: 13px;
     }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th {
       text-align: left;
-      padding: 8px 10px;
+      padding: 9px 12px;
       color: var(--muted);
       border-bottom: 1px solid var(--border);
-      font-weight: 500;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
       background: var(--bg);
     }
-    td {
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border);
-    }
-    tr:hover td { background: var(--border); }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface2); }
 
-    .raw-path {
-      flex: 1;
-      max-width: 320px;
-    }
+    tfoot tr td, tfoot tr th { border-top: 1px solid var(--border); border-bottom: none; }
+
+    .raw-path { flex: 1; max-width: 360px; }
 
     #endpoint-label {
-      font-weight: 600;
+      font-weight: 700;
       color: var(--text);
-      font-size: 15px;
+      font-size: 14px;
+      letter-spacing: .2px;
     }
   </style>
 </head>
@@ -321,14 +314,11 @@
 
 <script>
 const LABELS = {
-  profile: "Profil",
   grades: "Notes",
   absences: "Absences",
   agenda: "Agenda de la semaine",
-  news: "Actualités",
   teachers: "Professeurs",
   courses: "Cours",
-  students: "Étudiants",
   raw: "Requête libre",
 };
 
@@ -489,7 +479,7 @@ function renderGrades(d) {
   }
 
   return Object.entries(bySemester).map(([sem, courses]) => `
-    <div class="card">
+    <div class="card" style="margin-bottom:20px">
       <h3>${sem}</h3>
       <table>
         <thead><tr><th>Matière</th><th>Prof</th><th>CC</th><th>Partiel</th><th>Moyenne</th><th>Coef</th></tr></thead>
