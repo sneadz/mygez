@@ -15,36 +15,72 @@ const AUTH_URL  = "https://authentication.kordis.fr/oauth/authorize";
 const BASE_AUTH = "https://authentication.kordis.fr";
 const UA        = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const COOKIE    = "mgz_session";
+const ALGO      = "aes-256-gcm";
 
-// --- Session ---
-function makeToken(username) {
-  return crypto.createHmac("sha256", process.env.APP_SECRET).update(username).digest("hex");
+// --- Chiffrement du cookie de session ---
+function getKey() {
+  return crypto.scryptSync(process.env.APP_SECRET, "mygez-salt", 32);
 }
+
+function encrypt(text) {
+  const iv  = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(ALGO, getKey(), iv);
+  const enc = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, enc]).toString("base64url");
+}
+
+function decrypt(data) {
+  try {
+    const buf = Buffer.from(data, "base64url");
+    const iv  = buf.subarray(0, 12);
+    const tag = buf.subarray(12, 28);
+    const enc = buf.subarray(28);
+    const decipher = crypto.createDecipheriv(ALGO, getKey(), iv);
+    decipher.setAuthTag(tag);
+    return decipher.update(enc).toString("utf8") + decipher.final("utf8");
+  } catch { return null; }
+}
+
 function parseCookies(req) {
   return Object.fromEntries(
-    (req.headers.cookie || "").split(";").map(c => c.trim().split("=").map(s => decodeURIComponent(s.trim())))
+    (req.headers.cookie || "").split(";")
+      .map(c => c.trim().split("="))
+      .filter(p => p.length === 2)
+      .map(([k, v]) => [k.trim(), decodeURIComponent(v.trim())])
   );
 }
-function isAuth(req) {
-  const token = parseCookies(req)[COOKIE];
-  if (!token) return false;
-  const expected = makeToken(process.env.USERNAME);
-  try { return crypto.timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expected, "hex")); }
-  catch { return false; }
+
+function getSession(req) {
+  const raw = parseCookies(req)[COOKIE];
+  if (!raw) return null;
+  try {
+    const session = JSON.parse(decrypt(raw));
+    if (!session || Date.now() > session.expiry) return null;
+    return session;
+  } catch { return null; }
+}
+
+function setSessionCookie(res, token, expiry) {
+  const payload = JSON.stringify({ token, expiry });
+  const secure  = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const maxAge  = Math.floor((expiry - Date.now()) / 1000);
+  res.setHeader("Set-Cookie", `${COOKIE}=${encrypt(payload)}; HttpOnly${secure}; SameSite=Strict; Path=/; Max-Age=${maxAge}`);
 }
 
 // --- Login routes (publiques) ---
 app.get("/login", (req, res) => res.sendFile(join(__dirname, "login.html")));
 
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  if (username === process.env.USERNAME && password === process.env.PASSWORD) {
-    const token  = makeToken(username);
-    const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-    res.setHeader("Set-Cookie", `${COOKIE}=${token}; HttpOnly${secure}; SameSite=Strict; Path=/; Max-Age=604800`);
-    return res.redirect("/");
+  if (!username || !password) return res.redirect("/login?error=1");
+  try {
+    const { token, expiry } = await getTokenForUser(username, password);
+    setSessionCookie(res, token, expiry);
+    res.redirect("/");
+  } catch {
+    res.redirect("/login?error=1");
   }
-  res.redirect("/login?error=1");
 });
 
 app.get("/logout", (req, res) => {
@@ -54,7 +90,8 @@ app.get("/logout", (req, res) => {
 
 // --- Auth middleware ---
 app.use((req, res, next) => {
-  if (isAuth(req)) return next();
+  const session = getSession(req);
+  if (session) { req.mygesToken = session.token; return next(); }
   if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Non authentifié" });
   res.redirect("/login");
 });
@@ -62,16 +99,8 @@ app.use((req, res, next) => {
 // --- Fichiers statiques protégés ---
 app.use(express.static("public"));
 
-// --- MyGES Auth ---
-let cachedToken = null;
-let tokenExpiry = 0;
-
-async function getToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-
-  const { USERNAME, PASSWORD } = process.env;
-  if (!USERNAME || !PASSWORD) throw new Error("Identifiants manquants dans .env");
-
+// --- MyGES Auth (par user) ---
+async function getTokenForUser(username, password) {
   const jar = {};
   const saveCookies = (headers) => {
     for (const c of [headers["set-cookie"] || []].flat()) {
@@ -82,6 +111,7 @@ async function getToken() {
   };
   const cookieHeader = () => Object.entries(jar).map(([k, v]) => `${k}=${v}`).join("; ");
 
+  // 1. GET page de login
   let currentUrl = `${AUTH_URL}?response_type=token&client_id=skolae-app`;
   let loginPageData = "";
   for (let i = 0; i < 6; i++) {
@@ -99,8 +129,9 @@ async function getToken() {
     }
   }
 
+  // 2. POST credentials
   const actionMatch = loginPageData.match(/action="([^"]+)"/);
-  const actionUrl = new URL(actionMatch?.[1]?.replace(/&amp;/g, "&") ?? "/login", BASE_AUTH);
+  const actionUrl   = new URL(actionMatch?.[1]?.replace(/&amp;/g, "&") ?? "/login", BASE_AUTH);
   if (!actionUrl.searchParams.has("client_id")) {
     actionUrl.searchParams.set("response_type", "token");
     actionUrl.searchParams.set("client_id", "skolae-app");
@@ -108,7 +139,7 @@ async function getToken() {
 
   const postRes = await axios.post(
     actionUrl.href,
-    new URLSearchParams({ username: USERNAME, password: PASSWORD }).toString(),
+    new URLSearchParams({ username, password }).toString(),
     {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -122,13 +153,15 @@ async function getToken() {
   );
   saveCookies(postRes.headers);
 
+  // 3. Re-GET /oauth/authorize avec le JSESSIONID
   let location = `${AUTH_URL}?response_type=token&client_id=skolae-app`;
   for (let i = 0; i < 6 && location; i++) {
     const tokenMatch = location.match(/[#&?]access_token=([^&#]+)/);
     if (tokenMatch) {
-      cachedToken = decodeURIComponent(tokenMatch[1]);
-      tokenExpiry = Date.now() + 55 * 60 * 1000;
-      return cachedToken;
+      return {
+        token:  decodeURIComponent(tokenMatch[1]),
+        expiry: Date.now() + 55 * 60 * 1000,
+      };
     }
     const r = await axios.get(location, {
       headers: { Cookie: cookieHeader(), "User-Agent": UA },
@@ -139,7 +172,7 @@ async function getToken() {
     location = r.headers["location"] || "";
   }
 
-  throw new Error("Impossible de récupérer le token MyGES.");
+  throw new Error("Identifiants incorrects.");
 }
 
 async function mygesGet(path, token) {
@@ -149,7 +182,7 @@ async function mygesGet(path, token) {
   return res.data;
 }
 
-
+// --- Routes API ---
 const ROUTES = [
   { path: "/api/grades",   myges: (y) => `/me/${y}/grades` },
   { path: "/api/absences", myges: (y) => `/me/${y}/absences` },
@@ -160,9 +193,8 @@ const ROUTES = [
 for (const route of ROUTES) {
   app.get(route.path, async (req, res) => {
     try {
-      const token = await getToken();
-      const year  = req.query.year || "2025";
-      const data  = await mygesGet(route.myges(year), token);
+      const year = req.query.year || "2025";
+      const data = await mygesGet(route.myges(year), req.mygesToken);
       res.json(data);
     } catch (e) {
       res.status(e.response?.status || 500).json({ error: e.message, detail: e.response?.data });
@@ -174,8 +206,7 @@ app.get("/api/raw", async (req, res) => {
   const { path } = req.query;
   if (!path) return res.status(400).json({ error: "path requis" });
   try {
-    const token = await getToken();
-    const data  = await mygesGet(path, token);
+    const data = await mygesGet(path, req.mygesToken);
     res.json(data);
   } catch (e) {
     res.status(e.response?.status || 500).json({ error: e.message, detail: e.response?.data });
@@ -184,7 +215,7 @@ app.get("/api/raw", async (req, res) => {
 
 if (process.env.NODE_ENV !== "production") {
   const PORT = 3000;
-  app.listen(PORT, () => console.log(`MyGES Explorer → http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`mygez → http://localhost:${PORT}`));
 }
 
 export default app;
