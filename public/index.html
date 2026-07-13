@@ -16,6 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: var(--surface); }
 
     :root {
       --bg: #0d0d0f;
@@ -43,10 +44,9 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 0 24px;
-      padding-top: env(safe-area-inset-top, 0px);
-      height: calc(52px + env(safe-area-inset-top, 0px));
+      height: 52px;
       display: flex;
-      align-items: flex-end;
+      align-items: center;
       gap: 12px;
     }
 
@@ -72,7 +72,7 @@
 
     .layout {
       display: flex;
-      height: calc(100vh - 52px - env(safe-area-inset-top, 0px));
+      height: calc(100vh - 52px);
     }
 
     nav {
@@ -392,7 +392,7 @@
 
       .card { overflow-x: auto; }
 
-      header { padding: env(safe-area-inset-top, 0px) 12px 0; }
+      header { padding: 0 12px; }
 
       .toolbar { padding: 8px 12px; gap: 8px; }
 
