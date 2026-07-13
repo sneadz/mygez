@@ -2,8 +2,16 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>mygez</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="mygez">
+  <meta name="theme-color" content="#0d0d0f">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
@@ -35,6 +43,7 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 0 24px;
+      padding-top: env(safe-area-inset-top, 0px);
       height: 52px;
       display: flex;
       align-items: center;
@@ -374,7 +383,7 @@
 
       .nav-icon { display: block; }
 
-      .layout { height: calc(100vh - 52px); }
+      .layout { height: calc(100vh - 60px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px)); }
 
       .result-panel {
         padding: 12px;
