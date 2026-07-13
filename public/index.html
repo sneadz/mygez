@@ -262,6 +262,34 @@
     .sem-card.collapsed .sem-header { margin-bottom: 0; }
     .sem-card.filter-graded .has-no-grade { display: none; }
 
+    .sem-export-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      transition: color .15s;
+      flex-shrink: 0;
+    }
+    .sem-export-btn:hover { color: var(--accent); }
+
+    @media print {
+      body.printing nav,
+      body.printing .toolbar,
+      body.printing .sem-card { display: none !important; }
+      body.printing .sem-card.printing-target { display: block !important; }
+      body.printing .sem-card.printing-target .sem-body { display: block !important; }
+      body.printing .sem-card.printing-target .sem-header { margin-bottom: 14px !important; }
+      body.printing .layout { display: block; }
+      body.printing .main { padding: 8px; }
+      .sem-export-btn, .sem-chevron { display: none !important; }
+      .grades-cards { display: none !important; }
+      .grades-table { display: table !important; }
+    }
+
     .grade-filter { display: flex; gap: 4px; }
     .grade-filter-btn {
       background: none;
@@ -597,7 +625,13 @@ function renderGrades(d) {
     .map(([sem, courses], i) => `
     <div class="card sem-card${i === 0 ? '' : ' collapsed'}" style="margin-bottom:20px">
       <div class="sem-header">
-        <h3>${sem}</h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <h3>${sem}</h3>
+          <button class="grade-filter-btn sem-export-btn" onclick="exportSemester(event, this)" title="Exporter en PDF" style="display:flex;align-items:center;gap:5px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            Exporter
+          </button>
+        </div>
         <svg class="sem-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="sem-body">
@@ -609,15 +643,15 @@ function renderGrades(d) {
               <td style="color:var(--muted)">${c.teacher_first_name || ""} ${c.teacher_last_name || ""}</td>
               <td>${c.grades?.length ? c.grades.map(g => grade(g)).join(" ") : "—"}</td>
               <td>${c.exam != null ? grade(c.exam) : "—"}</td>
-              <td>${c.average != null ? grade(c.average) : "—"}</td>
+              <td>${grade(liveAverage(c))}</td>
               <td style="color:var(--muted)">${c.ects || "—"}</td>
             </tr>`; }).join("")}
           </tbody>
           <tfoot>${(() => {
-            const withAvg = courses.filter(c => c.average != null && parseFloat(c.coef) > 0);
+            const withAvg = courses.filter(c => liveAverage(c) != null && parseFloat(c.coef) > 0);
             if (!withAvg.length) return "";
             const totalCoef = withAvg.reduce((s, c) => s + parseFloat(c.coef), 0);
-            const weighted = withAvg.reduce((s, c) => s + c.average * parseFloat(c.coef), 0) / totalCoef;
+            const weighted = withAvg.reduce((s, c) => s + liveAverage(c) * parseFloat(c.coef), 0) / totalCoef;
             return `<tr style="font-weight:600;border-top:2px solid var(--border)">
               <td colspan="4" style="text-align:right;color:var(--muted)">Moyenne générale</td>
               <td>${grade(weighted)}</td>
@@ -643,19 +677,28 @@ function renderGrades(d) {
               </div>
               <div class="course-card-avg">
                 <span class="grade-label">Moy.</span>
-                ${c.average != null ? grade(c.average) : emptyBadge}
+                ${liveAverage(c) != null ? grade(liveAverage(c)) : emptyBadge}
               </div>
             </div>
           </div>`;
         }).join("")}${(() => {
-          const withAvg = courses.filter(c => c.average != null && parseFloat(c.coef) > 0);
+          const withAvg = courses.filter(c => liveAverage(c) != null && parseFloat(c.coef) > 0);
           if (!withAvg.length) return "";
           const totalCoef = withAvg.reduce((s, c) => s + parseFloat(c.coef), 0);
-          const weighted = withAvg.reduce((s, c) => s + c.average * parseFloat(c.coef), 0) / totalCoef;
+          const weighted = withAvg.reduce((s, c) => s + liveAverage(c) * parseFloat(c.coef), 0) / totalCoef;
           return `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);font-weight:600"><span>Moyenne générale</span>${grade(weighted)}</div>`;
         })()}</div>
       </div>
     </div>`).join("");
+}
+
+function liveAverage(c) {
+  if (c.average != null) return c.average;
+  const parts = [];
+  if (c.grades?.length) parts.push(c.grades.reduce((s, g) => s + parseFloat(g), 0) / c.grades.length);
+  if (c.exam != null) parts.push(parseFloat(c.exam));
+  if (!parts.length) return null;
+  return parts.reduce((s, g) => s + g, 0) / parts.length;
 }
 
 function grade(v) {
@@ -798,9 +841,22 @@ function renderValue(v, depth=0) {
 
 // --- Semestre toggle ---
 document.getElementById("view-pretty").addEventListener("click", e => {
+  if (e.target.closest(".sem-export-btn")) return;
   const header = e.target.closest(".sem-header");
   if (header) header.closest(".sem-card").classList.toggle("collapsed");
 });
+
+// --- Export semestre ---
+function exportSemester(e, btn) {
+  e.stopPropagation();
+  const card = btn.closest(".sem-card");
+  document.querySelectorAll(".sem-card").forEach(c => c.classList.remove("printing-target"));
+  card.classList.add("printing-target");
+  document.body.classList.add("printing");
+  window.print();
+  document.body.classList.remove("printing");
+  card.classList.remove("printing-target");
+}
 
 // --- Init ---
 document.getElementById("year-select").value = "2025";
