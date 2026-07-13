@@ -17,14 +17,6 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { background: var(--surface); }
-    body::before {
-      content: '';
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: env(safe-area-inset-top, 0px);
-      background: var(--surface);
-      z-index: 9999;
-    }
 
     :root {
       --bg: #0d0d0f;
@@ -51,11 +43,14 @@
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-      height: 52px;
+      padding: env(safe-area-inset-top, 0px) 24px 0;
+      height: calc(52px + env(safe-area-inset-top, 0px));
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
 
     header h1 {
@@ -80,7 +75,7 @@
 
     .layout {
       display: flex;
-      height: calc(100vh - 52px);
+      height: calc(100vh - 52px - env(safe-area-inset-top, 0px));
     }
 
     nav {
@@ -400,7 +395,7 @@
 
       .card { overflow-x: auto; }
 
-      header { padding: 0 12px; }
+      header { padding: env(safe-area-inset-top, 0px) 12px 0; }
 
       .toolbar { padding: 8px 12px; gap: 8px; }
 
