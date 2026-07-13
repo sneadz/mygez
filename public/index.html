@@ -44,9 +44,9 @@
       border-bottom: 1px solid var(--border);
       padding: 0 24px;
       padding-top: env(safe-area-inset-top, 0px);
-      height: 52px;
+      height: calc(52px + env(safe-area-inset-top, 0px));
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       gap: 12px;
     }
 
@@ -72,7 +72,7 @@
 
     .layout {
       display: flex;
-      height: calc(100vh - 52px);
+      height: calc(100vh - 52px - env(safe-area-inset-top, 0px));
     }
 
     nav {
